@@ -1,29 +1,19 @@
 import json
 from datetime import date, datetime, timedelta, timezone
-from functools import lru_cache
 from pathlib import Path
 from typing import List, Tuple
 
 from app.api.core.config import settings
 from app.schemas.schemas import FlightEvent, JourneyReturn, JourneyItem
 
-
-def _fmt(dt: datetime) -> str:
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
-
-
-def _same_date_utc(dt: datetime, target: date) -> bool:
-    return dt.astimezone(timezone.utc).date() == target
-
-
 class JourneyService:
-    def __init__(self, events_path: Path) -> None:
-        self._events_path: Path = Path(events_path)
+    def __init__(self) -> None:
         self._flight_events: List[FlightEvent] | None = None
 
     def _load_events(self) -> List[FlightEvent]:
+        path: Path = Path(settings.FLIGHT_EVENTS_PATH)
         if self._flight_events is None:
-            with self._events_path.open("r", encoding="utf-8") as f:
+            with path.open("r", encoding="utf-8") as f:
                 raw = json.load(f)
             self._flight_events = [FlightEvent(**item) for item in raw]
         return self._flight_events
@@ -34,18 +24,15 @@ class JourneyService:
             flight_number=e.flight_number,
             from_=e.departure_city,
             to=e.arrival_city,
-            departure_time=_fmt(e.departure_datetime),
-            arrival_time=_fmt(e.arrival_datetime),
+            departure_time=e.departure_datetime.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+            arrival_time=e.arrival_datetime.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M")
         )
 
     def find_journeys(self, day_utc: date, origin: str, destination: str) -> List[JourneyReturn]:
-        origin = origin.strip().upper()
-        destination = destination.strip().upper()
-
         events = self._load_events()
 
         day_events: List[FlightEvent] = [
-            e for e in events if _same_date_utc(e.departure_datetime, day_utc)
+            e for e in events if e.departure_datetime.astimezone(timezone.utc).date() == day_utc
         ]
 
         # Vuelos Directos
@@ -91,8 +78,10 @@ class JourneyService:
         for p in one_stop_paths:
             add_path(p)
 
+        # Orden: menos conexiones, luego hora de salida
+        result.sort(key=lambda j: (j.connections, j.path[0].departure_time))
         return result
 
 
 def get_journey_service():
-    return JourneyService(settings.FLIGHT_EVENTS_PATH)
+    return JourneyService()
