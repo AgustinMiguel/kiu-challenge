@@ -1,0 +1,38 @@
+from __future__ import annotations
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field, field_validator
+from typing import List
+
+
+class FlightEvent(BaseModel):
+    flight_number: str
+    departure_city: str
+    arrival_city: str
+    departure_datetime: datetime
+    arrival_datetime: datetime
+
+
+    @field_validator("departure_city", "arrival_city")
+    @classmethod
+    def normalize_city(cls, v: str) -> str:
+        return v.strip().upper()
+
+    @field_validator("departure_datetime", "arrival_datetime")
+    @classmethod
+    def ensure_utc(cls, dt: datetime) -> datetime:
+        return dt.astimezone(timezone.utc)
+
+
+class JourneyItem(BaseModel):
+    flight_number: str
+    from_: str = Field(
+        serialization_alias="from"
+    ) ##From es reservada de python
+    to: str
+    departure_time: str
+    arrival_time: str
+
+
+class JourneyReturn(BaseModel):
+    connections: int
+    path: List[JourneyItem]

@@ -1,0 +1,6 @@
+fastapi
+pydantic-settings
+uvicorn[standard]
+pytest
+httpx
+python-dotenv>=1.0
